@@ -1,0 +1,919 @@
+options
+{
+  static = true;
+  DEBUG_PARSER = true;
+}
+
+PARSER_BEGIN(Compilador)
+package parser;
+import recovery.*;
+import view.Tela;
+
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import javax.swing.JOptionPane;
+import java.io.FileWriter;
+import arquivos.CreateFile;
+import java.io.FileWriter;
+import javax.swing.JFileChooser;
+ 
+public class Compilador
+{
+	final static Tela window = new Tela();
+ 
+  public static void main(String args []) throws ParseException
+  {
+    window.frmTela.setVisible(true);
+		
+		window.getCompilar().addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+
+	  			window.setVazioConsoleMsg();
+
+				if((window.getTextArquivo().getText().equals(window.getCampoTexto())) != true)
+                {
+                  window.setControleArquivo(false);
+                }
+
+
+                if(window.getControleArquivo() || window.getTextArquivo().getText().equals(" ") )
+                {				
+					inicia();
+		   		}else
+				{
+					if(window.getTextArquivo().getText().equals(""))
+	                {
+	                    JOptionPane.showMessageDialog (null, "Arquivo vazio", "Arquivo", JOptionPane.WARNING_MESSAGE);
+	                }else{
+	                  int resp = JOptionPane.showConfirmDialog(null, "Salvar altera\u00e7\u00f5es?");
+	                  
+                  	  if(resp == 0)
+                  	  {
+                  	    
+                  	    if(window.getFile() == null)
+                  	    {
+                  	     	window.salvarComo();
+							inicia();
+							
+                  	    }else 
+                  	    {
+                  	      	window.salvar();
+							inicia();
+                  	    }
+                  	  }
+                  	}
+				}
+		   	}
+  		});
+  }
+
+
+  static void inicia(){
+    FileReader arql = null;
+    
+    try {
+			arql = new FileReader(window.getFile());
+		} catch (FileNotFoundException e2) {
+			e2.printStackTrace();
+		}
+		BufferedReader arq = new BufferedReader(arql);
+	    try
+	    {
+	      Compilador parser = new Compilador(arq);
+	    }catch (Exception e1)
+	    {
+	      Compilador.ReInit(arq);
+	    }catch (Error e1)
+   		{
+   		  Compilador.ReInit(arq);
+   		}
+   
+      	try
+      	{
+    		SimpleNode n = Compilador.main();
+   			n.dump(" ", window);
+		}
+		catch (Exception e1)
+     	{}
+ 		catch (Error e1)
+   		{}
+  }
+  
+  
+  static public String im(int x)
+  {
+    int k;
+	String s;
+    s = tokenImage[x];
+    k = s.lastIndexOf("\"");
+    try {
+      s = s.substring(1,k);
+    }
+   catch (StringIndexOutOfBoundsException e)
+	   {}
+   return s;	
+  }
+	
+  static Token lastError = null;
+
+  static boolean eof; 
+
+  static void consumeUntil(RecoverySet g, ParseException e, String met) throws ParseEOFException, ParseException
+  {
+    Token tok;
+    window.setConsole("\n*** " + met + " ***");
+    window.setConsole("\n     Conjunto de sincronização: " + g);
+    if (g == null) throw e; 
+    tok = getToken(1); 
+    while (!eof)
+    { 
+      if (g.contains(tok.kind))
+      { 
+        window.setConsole("\n     Encontrado token de sincronização: " + im(tok.kind));
+        break;
+      }
+      window.setConsole("\n     Ignorando o token: " + im(tok.kind));
+      getNextToken();  
+      tok = getToken(1);
+      if (tok.kind == EOF && !g.contains(EOF))   
+      eof = true;
+    }
+    if (tok != lastError)
+    {
+      window.setConsole(e.getMessage());
+      lastError = tok;
+    }
+    if (eof) throw new ParseEOFException("Encontrei EOF onde não deveria.");
+  }
+}
+  
+PARSER_END(Compilador)
+
+SKIP :
+{
+  " "
+| "\r"
+| "\t"
+| "\n"
+| ";"
+}
+
+TOKEN : /* Tipos de dado */
+{
+  < TIPOINTEIRO: "tipo" >
+| < TIPOBOOL: "busao" >
+| < TIPOSTRING: "vei" >
+}
+
+
+TOKEN /* Estrutura */:
+{
+  < INICIOPROGRAMA : "bora" >
+| < ABREBLOCO : "cola aqui" >
+| < FIMBLOCO : "flw" >
+| < ABREBLOCOND : "vamo" >
+| < FECHABLOCOND : "vlw" >
+}
+
+TOKEN : /* Condicionais */
+{
+  < CONDIF: "se pa" >
+| < CONDELSE: "nem fudendo" >
+| < REPWHILE: "mano" >
+| < REPFOR: "mano do ceu">
+| < ENTAO: "parsa">
+}
+
+
+TOKEN :
+{
+  < NUMERO : (< DIGITO >)+ >
+| < #DIGITO : [ "0"-"9" ] >
+| < ID : <LETRA> (< LETRA> | < DIGITO>)* >
+| < LETRA: ["A"-"Z"] | ["a"-"z"] >
+| < ASPAS: "'">
+| < VIRGULA: ",">
+}
+
+
+TOKEN : /* Expressões lógicas */
+{
+ < DIFERENTE: "!=">
+| < MENORIGUAL: "<=">
+| < MAIORIGUAL: ">=">
+| < IGUAL: "==">
+| < E : "&&" >
+| < OU: "||">
+}
+
+
+TOKEN : /* Expressões matemáticas */
+{
+  < MAIS: "+">
+| < MENOS: "-">
+| < MULTI: "*">
+| < DIV: "/">
+| < MAIOR: ">">
+| < MENOR: "<">
+| < ATRIBUI: "=">
+}
+
+void tipoInteiro():
+{ RecoverySet sincronizacao = First.tipoInteiro; }
+{
+    try{
+      
+		< TIPOINTEIRO >
+
+    } catch(ParseException e){
+       try {
+            consumeUntil(sincronizacao, e, "tipoInteiro");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+     
+}
+
+
+
+void tipoBool():
+{ RecoverySet sincronizacao = First.tipoBool; }
+{
+    try{
+    
+	< TIPOBOOL>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "tipoBool");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void tipoString():
+{ RecoverySet sincronizacao = First.tipoString; }
+{
+    try{
+    
+	< TIPOSTRING>
+
+    } catch(ParseException e){
+        try {
+            consumeUntil(sincronizacao, e, "tipoString");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+}
+
+
+void numero():
+{ RecoverySet sincronizacao = First.numero; }
+{
+    try{
+    
+	< NUMERO>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "numero");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+}
+
+
+void id():
+{ RecoverySet sincronizacao = First.id; }
+{
+    try{
+    
+	< ID>
+
+    } catch(ParseException e){
+        try {
+			consumeUntil(sincronizacao, e, "id");
+          } catch(ParseEOFException erro) {}
+    }
+}
+
+
+void aspas():
+{ RecoverySet sincronizacao = First.aspas; }
+{
+    try{
+    
+	< ASPAS>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "aspas");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+	
+
+void virgula():
+{ RecoverySet sincronizacao = First.virgula; }
+{
+    try{
+    
+	< VIRGULA>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "virgula");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void condIf():
+{ RecoverySet sincronizacao = First.condIf; }
+{
+    try{
+    
+	< CONDIF>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "condIf");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void condElse():
+{ RecoverySet sincronizacao = First.condElse; }
+{
+    try{
+    
+	< CONDELSE>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "condElse");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void repWhile():
+{ RecoverySet sincronizacao = First.repWhile; }
+{
+    try{
+    
+	< REPWHILE>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "repWhile");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void repFor():
+{ RecoverySet sincronizacao = First.repFor; }
+{
+    try{
+    
+	< REPFOR>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "repFor");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void entao():
+{ RecoverySet sincronizacao = First.entao; }
+{
+    try{
+    
+	< ENTAO>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "entao");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+	
+void mais():
+{ RecoverySet sincronizacao = First.mais; }
+{
+    try{
+    
+	< MAIS>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "mais");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void menos():
+{ RecoverySet sincronizacao = First.menos; }
+{
+    try{
+    
+	< MENOS>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "menos");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+       
+    }
+}
+
+
+void multi():
+{ RecoverySet sincronizacao = First.multi; }
+{
+    try{
+    
+	< MULTI>
+
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "multi");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+}	
+
+
+void div():
+{ RecoverySet sincronizacao = First.div; }
+{
+    try{
+    
+	< DIV>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "div");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void maior():
+{ RecoverySet sincronizacao = First.maior; }
+{
+    try{
+    
+	< MAIOR>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "maior");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+}	
+	
+
+void menor():
+{ RecoverySet sincronizacao = First.menor; }
+{
+    try{
+    
+	< MENOR>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "menor");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+}	
+
+
+void atribui():
+{ RecoverySet sincronizacao = First.atribui; }
+{
+    try{
+    
+	< ATRIBUI>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "atribui");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void inicioPrograma():
+{ RecoverySet sincronizacao = First.inicioPrograma; }
+{
+    try{
+    
+	< INICIOPROGRAMA>
+	
+    } catch(ParseException e){
+        try {
+			consumeUntil(sincronizacao, e, "inicioPrograma");
+          } catch(ParseEOFException erro) {}
+    }
+}	
+
+
+void abreBloco():
+{ RecoverySet sincronizacao = First.abreBloco; }
+{
+    try{
+    
+	< ABREBLOCO>
+	
+    } catch(ParseException e){
+       try {
+         	consumeUntil(sincronizacao, e, "abreBloco");
+         }catch(ParseEOFException erro) {}
+        
+    }
+}	
+
+
+void fimBloco():
+{ RecoverySet sincronizacao = First.fimBloco; }
+{
+    try{
+    
+	< FIMBLOCO>
+	
+    } catch(ParseException e){
+		try {
+			consumeUntil(sincronizacao, e, "fimBloco");
+		  }catch(ParseEOFException erro) {}
+        
+    }
+}	
+
+   
+void abreBloCond():
+{ RecoverySet sincronizacao = First.abreBloCond; }
+{
+    try{
+    
+	 < ABREBLOCOND>
+	
+    } catch(ParseException e){
+		try {
+            consumeUntil(sincronizacao, e, "abreBloCond");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void fechaBloCond():
+{ RecoverySet sincronizacao = First.fechaBloCond; }
+{
+    try{
+    
+	 < FECHABLOCOND>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "fechaBloCond");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+   
+
+void diferente():
+{ RecoverySet sincronizacao = First.diferente; }
+{
+    try{
+    
+	   < DIFERENTE>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "diferente");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void menorIgual():
+{ RecoverySet sincronizacao = First.menorIgual; }
+{
+    try{
+    
+	    < MENORIGUAL>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "menorIgual");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void maiorIgual():
+{ RecoverySet sincronizacao = First.maiorIgual; }
+{
+    try{
+    
+	    < MAIORIGUAL>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "maiorIgual");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}	
+
+
+void igual():
+{ RecoverySet sincronizacao = First.igual; }
+{
+    try{
+    
+	    < IGUAL>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "igual");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+
+
+void e():
+{ RecoverySet sincronizacao = First.e; }
+{
+    try{
+    
+	    < E>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "e");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+        
+    }
+}
+	
+
+void ou():
+{ RecoverySet sincronizacao = First.ou; }
+{
+    try{
+    
+	     < OU>
+	
+    } catch(ParseException e){
+      try {
+            consumeUntil(sincronizacao, e, "ou");
+        } catch (ParseEOFException e1) {
+            e1.printStackTrace();
+        }
+    }
+}
+
+SimpleNode main()  :
+{}
+{
+	    inicioPrograma() id() abreBloco()
+
+		(defineVariaveis())*
+		(corpo())*
+	
+		fimBloco()
+
+    {
+    return jjtThis;
+  	}
+}
+
+
+
+
+void tipoDado() :
+{ RecoverySet sincronizacao = First.tipoDado; }
+{
+    try{
+    
+	     tipoInteiro() | tipoBool() | tipoString()
+	
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "tipoDado");
+    }
+}
+
+
+void tipo_Calculo() :
+{ RecoverySet sincronizacao = First.tipo_Calculo; }
+{
+    try{
+    
+		   	mais()
+		|	menos()
+		|	multi()
+		|	div()	
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "tipo_Calculo");
+    }
+}
+
+
+void tipoComparacao() :
+{ RecoverySet sincronizacao = First.tipoComparacao; }
+{
+    try{
+			maior()
+		|	menor()
+		|	menorIgual()
+		|	maiorIgual()
+		|	diferente()
+		|	igual()	
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "tipoComparacao");
+    }
+}
+
+
+void tipoOperadorLogico() :
+{ RecoverySet sincronizacao = First.tipoOperadorLogico; }
+{
+    try{
+		  e() cond()
+		| ou() cond()
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "tipoOperadorLogico");
+    }
+}
+
+
+void corpo() :
+{ RecoverySet sincronizacao = First.corpo; }
+{
+    try{
+      
+	  	id() atribuicaoVar() |
+		condIf() cond() (tipoOperadorLogico())*  entao() (abreBloCond() corpo() fechaBloCond()) (condElse() (abreBloCond() corpo() fechaBloCond()))? |
+		repWhile() cond() (tipoOperadorLogico())* (abreBloCond() corpo() fechaBloCond()) |
+		repFor() (id() atribuicaoVar() virgula() id() tipoComparacao() id() virgula() id() atribuicaoVar() abreBloCond() corpo() fechaBloCond()) |
+		fechaBloCond()
+	
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "corpo");
+    }
+}
+
+
+void input() :
+{ RecoverySet sincronizacao = First.input; }
+{
+    try{
+      
+		id() | numero()
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "input");
+    }
+}
+
+
+void defineVariaveis() : 
+{ RecoverySet sincronizacao = First.defineVariaveis; }
+{
+    try{
+      
+		tipoDado() id() ((atribuicaoVar())* virgula())+ 
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "defineVariaveis");
+    }
+}
+
+
+void atribuicaoVar() :
+{ RecoverySet sincronizacao = First.atribuicaoVar; }
+{
+    try{
+      
+		atribui() (numero() | aspas()id()aspas()) 
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "atribuicaoVar");
+    }
+}
+
+
+void cond() :
+{ RecoverySet sincronizacao = First.cond; }
+{
+    try{
+      
+		setCond() tipoComparacao() setCond() 
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "sincronizacao");
+    }
+}
+
+void setCond() :
+{ RecoverySet sincronizacao = First.atribuicaoVar; }
+{
+    try{
+      
+		input() (tipo_Calculo() input())* 
+		
+    } catch(ParseException e){
+        consumeUntil(sincronizacao, e, "atribuicaoVar");
+    }
+}
+
+
+
+	
+
+
+
+
+
+
+
+
+
